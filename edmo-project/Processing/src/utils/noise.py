@@ -17,7 +17,7 @@ class NoiseFactory:
         
         df_original = df.groupby('seqid').apply(NoiseMachine.no_anomaly).reset_index(drop=True)
 
-        return pd.concat([df_original, df_synthetic])
+        return pd.concat([df_original, df_synthetic]).reset_index()
 
     @classmethod
     def gaussian(cls, df, columns, ratio, stdtimes):

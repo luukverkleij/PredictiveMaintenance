@@ -1,7 +1,7 @@
 import numpy as np
 
 # Settings
-globals_test_data = False
+globals_test_data = True
 data_folder_path = "data" if not globals_test_data else "data-test"
 experiments_folder_path = "experiments/" if not globals_test_data else "experiments-test/"
 

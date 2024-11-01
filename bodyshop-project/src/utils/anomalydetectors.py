@@ -6,6 +6,7 @@ from functools import reduce
 from scipy.stats import median_abs_deviation
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.ensemble import IsolationForest
+from scipy.spatial.distance import mahalanobis
 
 import src.utils.globals as g
 
@@ -92,17 +93,52 @@ class MZScore(AnomalyDetector):
         mzscore = self.aggr(self.model[[f'{col}_mzscore' for col in columns]])
         
         return mzscore
+    
 
+class MahalanobisDistance(AnomalyDetector):
+    def __init__(self, method='mahalanobis', aggr=None):
+        super().__init__(column_name=method)
+        self.columns = None
+        self.aggr = aggr
+        self.method = method
+        self.cov_matrix = None
+        self.inv_cov_matrix = None
+        self.mean_distr = None
+
+    def fit(self, df, columns, verbose):
+        self.columns = columns
+        self.cov_matrix = np.cov(df[columns].values.T)
+        self.inv_cov_matrix = np.linalg.inv(self.cov_matrix)
+        self.mean_distr = df[columns].mean(axis=0)
+        return self
+
+    def score(self, df, columns):
+        if self.cov_matrix is None or self.inv_cov_matrix is None or self.mean_distr is None:
+            raise ValueError("Model has not been fitted yet.")
+        
+        if self.aggr is None:
+            self.aggr = lambda x: np.sum(x, axis=1) / len(columns)
+        
+        if self.method == 'mahalanobis':
+            distances = df[columns].apply(lambda row: mahalanobis(row, self.mean_distr, self.inv_cov_matrix), axis=1)
+        elif self.method == 'modified_mahalanobis':
+            distances = df[columns].apply(lambda row: np.sqrt(mahalanobis(row, self.mean_distr, self.inv_cov_matrix)), axis=1)
+        else:
+            raise ValueError("Unknown method specified.")
+        
+        return distances
+
+# LOF
 class LOF(AnomalyDetector):
     def __init__(self, n_neighbors=20):
         super().__init__(column_name='lof')
         self.model = LocalOutlierFactor(n_neighbors=n_neighbors)
 
-    def fit(self, df, columns, verbose):
-        self.model.fit(df[['timeindex_bin'] + columns])
+    def fit(self, df, columns):
+        self.model.fit(df[columns])
         return self
 
-    def score(self, df, columns):
+    def score(self, df):
         if self.model is None:
             raise ValueError("Model has not been fitted yet.")  
         

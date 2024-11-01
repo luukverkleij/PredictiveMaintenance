@@ -15,6 +15,7 @@ edmo-project/server/Sessionlogs/
 edmo-project/Processing/data/
 edmo-project/Processing/data-test/
 edmo-project/Processing/experiments/
+edmo-project/Processing/experiments-test/
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
