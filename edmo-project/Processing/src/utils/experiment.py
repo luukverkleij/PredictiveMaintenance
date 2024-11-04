@@ -1,6 +1,7 @@
 import pickle
 import pandas as pd
 import concurrent.futures
+import os
 
 from typing import Self
 from datetime import datetime
@@ -18,6 +19,7 @@ class Experiment:
         if self.name == "":
             self.name = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         self.results = {
+            'input' : pd.DataFrame(),
             'df' : pd.DataFrame(),
             'pr' : {},
             'roc' : {},
@@ -29,7 +31,6 @@ class Experiment:
 
     def run(self, df, models : dict[str, m.AnomalyDetector], columns : list[str], spliton=None, verbose=False):
         self.results['df'] = df[['seqid', 'timeindex_bin']].copy()
-        #models_results = {model : [] for model in self.models.keys()}
         dfs = [df]
 
         if spliton:
@@ -41,12 +42,14 @@ class Experiment:
 
         # Let's for every method apply a futures thing...
         def model_fit_scores(name, model, dfs, columns, verbose):
+            print(f"model_fit_scores {name} for {len(dfs)} on {columns}")
             r = []
             for df in dfs:
                 r += [model.fit_score(df, columns, verbose)]
                 self.verbose_progress(name, len(dfs))
 
             return r
+        
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = {
@@ -95,6 +98,9 @@ class Experiment:
     def set_anomalies(self, df_anomalies):
         self.anomalies = df_anomalies
     
+    def set_input(self, df_input):
+        self.results['input'] = df_input
+
     def verbose_progress(self, method, total):
         # Update
         self.progress.at[0, method] = f"{int(self.progress.at[0, method].split('/')[0]) + 1}/{total}"
@@ -106,7 +112,11 @@ class Experiment:
     def plot_rp(self, thresholds=True):
         plot_rpcurves(self.results['pr'])
 
+        
     def pickle(self):
+        directory = os.path.dirname(self.path(self.name))
+        if not os.path.exists(directory):
+            os.makedirs(directory)
         with open(self.path(self.name), 'wb') as f:
             pickle.dump(self, f)
 
@@ -121,4 +131,5 @@ class Experiment:
     @classmethod
     def path(cls, name):
         return g.experiments_folder_path + f'{name}'
+    
     

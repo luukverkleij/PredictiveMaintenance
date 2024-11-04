@@ -175,13 +175,17 @@ class MahalanobisDistance(AnomalyDetector):
 # LOF
 #
 class LOF(AnomalyDetector):
-    def __init__(self, n_neighbors=20):
-        super().__init__(column_name='lof')
+    def __init__(self, n_neighbors=20, name="lof"):
+        super().__init__(column_name=name)
         self.model = LocalOutlierFactor(n_neighbors=n_neighbors)
         self.scores = None
 
     def fit(self, df, columns, verbose):
-        df_tmp = df[columns]
+        print(df)
+
+        learn_columns = columns[1]
+
+        df_tmp = df[learn_columns]
         self.model.fit(df_tmp)
         self.scores = -self.model.negative_outlier_factor_
         return self
