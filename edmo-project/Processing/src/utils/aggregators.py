@@ -11,7 +11,7 @@ import numpy as np
 #region Aggregation Methods
 # Aggregation Functions
 def aggregate_scores(df, columns, funcs, normalize=True):    
-    agg_dict = {col: funcs[i] for i, col in enumerate(columns)} | {'timeindex_bin' : 'max'}
+    agg_dict = {col: funcs[i] for i, col in enumerate(columns)} | {'timeindex_bin' : 'count'}
     agg_df = df.groupby(['seqid']).agg(agg_dict).reset_index()
 
     if normalize:

@@ -29,7 +29,7 @@ class Experiment:
         self.progress = pd.DataFrame()
         self.anomalies = pd.DataFrame()
 
-    def run(self, df, models : dict[str, m.AnomalyDetector], columns : list[str], spliton=None, verbose=False):
+    def run(self, df, models : list[m.AnomalyDetector], columns : tuple[list[str], list[str]], spliton=None, verbose=False):
         self.results['df'] = df[['seqid', 'timeindex_bin']].copy()
         dfs = [df]
 
@@ -37,7 +37,7 @@ class Experiment:
             dfs = [group for _, group in df.groupby(spliton)]
 
         if verbose:
-            self.progress = pd.DataFrame({model: [f"0/{len(dfs)}"] for model in models.keys()})
+            self.progress = pd.DataFrame({model.name: [f"0/{len(dfs)}"] for model in models})
             #print(self.progress.to_string(index=False))
 
         # Let's for every method apply a futures thing...
@@ -53,8 +53,8 @@ class Experiment:
         
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(model_fit_scores, name, model, dfs, columns, False) : name 
-                for name, model in models.items()
+                executor.submit(model_fit_scores, model.name, model, dfs, columns, False) : model.name 
+                for model in models
             }
 
             while futures:
@@ -80,13 +80,14 @@ class Experiment:
 
         # Calculate series df here
         dfs_series = []
-        for (name,_) in models.items():
-            dfs_series += [aggrfunc(self.results['df'], [name])]
+        for model in models:
+            dfs_series += [aggrfunc(self.results['df'], [model.name])]
 
         df_series = reduce(lambda x, y: pd.merge(x, y, on = 'seqid'), dfs_series)
         df = pd.merge(df_series, df_anomalous, on='seqid')
 
-        for (name,_) in models.items():
+        for model in models:
+                name = model.name
                 self.results['pr'][name]    = precision_recall_curve(df['anomalous'], df[name])
                 self.results['auc-pr'][name]  = auc(self.results['pr'][name][1], self.results['pr'][name][0])
 

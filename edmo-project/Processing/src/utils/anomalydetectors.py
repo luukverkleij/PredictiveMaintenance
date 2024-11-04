@@ -18,7 +18,7 @@ import src.utils.globals as g
 class AnomalyDetector(ABC):
     def __init__(self, column_name):
         self.model = None
-        self.column_name = column_name
+        self.name = self.column_name = column_name
 
     @abstractmethod
     def fit(self, df, columns, verbose=False):
@@ -121,7 +121,7 @@ class MahalanobisDistance(AnomalyDetector):
 
     def _calculate_mahalanobis(self, group):
         if len(group) == 1:
-            group['mahalanobis_distance'] = 0
+            group[self.column_name] = 0
             return group[[]]
 
         features = group
@@ -137,7 +137,7 @@ class MahalanobisDistance(AnomalyDetector):
             inv_cov_matrix = np.linalg.pinv(cov_matrix)
         
         # Calculate Mahalanobis distance for each row in the group
-        group['mahalanobis_distance'] = features.apply(
+        group[self.column_name] = features.apply(
             lambda row: mahalanobis(row, mean_vector, inv_cov_matrix),
             axis=1
         )
@@ -151,21 +151,15 @@ class MahalanobisDistance(AnomalyDetector):
         featcols = columns[1]
 
         self.model = df.groupby(col_time)[featcols].apply(self._calculate_mahalanobis)
-        self.model = self.model[featcols + ['mahalanobis_distance']].reset_index()
+        self.model = self.model[featcols + [self.column_name]].reset_index()
 
-        # print("MahalanobisDistance Calculation")
-        # self.mean = self.model.mean().values
-        # print(self.mean)
-        # cov_matrix = np.cov(self.model.values, rowvar=False)
-        # self.inv_cov_matrix = np.linalg.inv(cov_matrix)
-        # print(self.inv_cov_matrix)
         return self
 
     def score(self, df, columns):
         if self.model is None:
             raise ValueError("Model has not been fitted yet.")
         
-        return self.model
+        return self.model[self.column_name]
 #
 # robustMahalanobisDistance
 #
@@ -176,17 +170,14 @@ class MahalanobisDistance(AnomalyDetector):
 #
 class LOF(AnomalyDetector):
     def __init__(self, n_neighbors=20, name="lof"):
-        super().__init__(column_name=name)
+        super().__init__(column_name=f"{name}_{n_neighbors}")
         self.model = LocalOutlierFactor(n_neighbors=n_neighbors)
         self.scores = None
 
     def fit(self, df, columns, verbose):
-        print(df)
+        X = df[["timeindex"] + columns[1]]
 
-        learn_columns = columns[1]
-
-        df_tmp = df[learn_columns]
-        self.model.fit(df_tmp)
+        self.model.fit(X.values)
         self.scores = -self.model.negative_outlier_factor_
         return self
 
@@ -205,7 +196,7 @@ class IF(AnomalyDetector):
         self.model = IsolationForest(n_estimators = 500, contamination = 0.02, random_state = 42, n_jobs = -1)
 
     def fit(self, df, columns, verbose):
-        X = df[['timeindex_bin'] + columns]
+        X = df[['timeindex'] + columns[1]]
         self.model.fit(X.values)
         self.scores = self.model.score_samples(X.values)
         return self
