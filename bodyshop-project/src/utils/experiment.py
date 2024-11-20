@@ -13,12 +13,28 @@ import src.utils.globals as g
 
 from src.utils.plotting import plot_rpcurves
 
+import pickle
+import pandas as pd
+import concurrent.futures
+import os
+
+from typing import Self
+from datetime import datetime
+from functools import reduce
+from sklearn.metrics import precision_recall_curve, auc, roc_curve
+from concurrent.futures import wait, FIRST_COMPLETED
+
+import src.utils.anomalydetectors as m
+import src.utils.globals as g
+from src.utils.plotting import plot_rpcurves
+
 class Experiment:
     def __init__(self, name : str = ""):
         self.name = name
         if self.name == "":
             self.name = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         self.results = {
+            'input' : pd.DataFrame(),
             'df' : pd.DataFrame(),
             'pr' : {},
             'roc' : {},
@@ -28,16 +44,15 @@ class Experiment:
         self.progress = pd.DataFrame()
         self.anomalies = pd.DataFrame()
 
-    def run(self, df, models : dict[str, m.AnomalyDetector], columns : list[str], spliton=None, verbose=False):
-        self.results['df'] = df[['seqid', 'timeindex_bin']].copy()
-        #models_results = {model : [] for model in self.models.keys()}
+    def run(self, df, models : list[m.AnomalyDetector], columns : tuple[list[str], list[str]], spliton=None, verbose=False):
+        self.results['df'] = df[columns[0] + ['timeindex'] + columns[1]].copy()
         dfs = [df]
 
         if spliton:
             dfs = [group for _, group in df.groupby(spliton)]
 
         if verbose:
-            self.progress = pd.DataFrame({model: [f"0/{len(dfs)}"] for model in models.keys()})
+            self.progress = pd.DataFrame({model.name: [f"0/{len(dfs)}"] for model in models})
             #print(self.progress.to_string(index=False))
 
         # Let's for every method apply a futures thing...
@@ -50,10 +65,11 @@ class Experiment:
 
             return r
         
+        
         with concurrent.futures.ThreadPoolExecutor() as executor:
             futures = {
-                executor.submit(model_fit_scores, name, model, dfs, columns, False) : name 
-                for name, model in models.items()
+                executor.submit(model_fit_scores, model.name, model, dfs, columns, False) : model.name 
+                for model in models
             }
 
             while futures:
@@ -66,7 +82,7 @@ class Experiment:
                     name = futures[future]
                     results = pd.concat(future.result())
 
-                    self.results['df'] = self.results['df'].merge(results, on=['seqid', 'timeindex_bin'])
+                    self.results['df'] = self.results['df'].merge(results, on=columns[0], how='left')
 
                     # Remove the processed future from the futures dict
                     del futures[future]
@@ -79,14 +95,14 @@ class Experiment:
 
         # Calculate series df here
         dfs_series = []
-        for (name,_) in models.items():
-            dfs_series += [aggrfunc(self.results['df'], [name])]
+        for model in models:
+            dfs_series += [aggrfunc(self.results['df'], [model.name])]
 
         df_series = reduce(lambda x, y: pd.merge(x, y, on = 'seqid'), dfs_series)
         df = pd.merge(df_series, df_anomalous, on='seqid')
-        
 
-        for (name,_) in models.items():
+        for model in models:
+                name = model.name
                 self.results['pr'][name]    = precision_recall_curve(df['anomalous'], df[name])
                 self.results['auc-pr'][name]  = auc(self.results['pr'][name][1], self.results['pr'][name][0])
 
@@ -98,18 +114,25 @@ class Experiment:
     def set_anomalies(self, df_anomalies):
         self.anomalies = df_anomalies
     
+    def set_input(self, df_input):
+        self.results['input'] = df_input
+
     def verbose_progress(self, method, total):
         # Update
         self.progress.at[0, method] = f"{int(self.progress.at[0, method].split('/')[0]) + 1}/{total}"
 
         # Clear & Print
         #clear_output(wait=True)
-        print(self.progress.to_string(index=False), end='\r')
+        print("\033[F\r" + self.progress.to_string(index=False))
     
     def plot_rp(self, thresholds=True):
         plot_rpcurves(self.results['pr'])
 
+        
     def pickle(self):
+        directory = os.path.dirname(self.path(self.name))
+        if not os.path.exists(directory):
+            os.makedirs(directory)
         with open(self.path(self.name), 'wb') as f:
             pickle.dump(self, f)
 
@@ -124,4 +147,6 @@ class Experiment:
     @classmethod
     def path(cls, name):
         return g.experiments_folder_path + f'{name}'
+    
+    
     

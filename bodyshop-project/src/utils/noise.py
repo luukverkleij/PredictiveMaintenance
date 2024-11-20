@@ -56,6 +56,10 @@ class NoiseMachine:
 
         noise = truncnorm.rvs(minstd/std, np.inf, size=num, scale=std*stdtimes)
         index = data.sample(num).index
+        print(data.loc[index, 'torqueactual'])
+        print(noise)
+        noise *= [1 if x >= 0 else -1 for x in data.loc[index, 'torqueactual'].values]
+        print(noise)
 
         data.loc[index, "anomaly_syn"] = noise
         data.loc[index, "anomaly_syn_type"] = "point"
@@ -92,7 +96,7 @@ class NoiseMachine:
         end_idx = start_idx + anom_len
 
         t = np.linspace(0, np.pi/2, anom_len)
-        sinusoidal_pattern = np.sin(t*2/3*np.pi) * amplitude * std * np.random.choice([-1, 1])
+        sinusoidal_pattern = np.sin(t*2/3*np.pi) * amplitude * std
 
         data.loc[start_idx : end_idx - 1, "anomaly_syn"] = sinusoidal_pattern
 
@@ -186,22 +190,6 @@ class NoiseMachine:
                 c="r",
                 marker="x", # type: ignore
             )
-        elif noise_type == "trend_anomaly":
-            data[f"{column}_noise"] = data[column] + data["anomaly_syn"]
-            data_group = (
-                data[["seqid", column, f"{column}_noise"]]
-                .groupby("seqid")
-                .agg("mean")
-                .reset_index()
-            )
-            ax.plot(data_group.index, data_group[column], label="original")
-            ax.plot(
-                data_group.index, data_group[f"{column}_noise"], label="anomaly", c="r"
-            )
-            ax.set_title(f"{noise_type} -- {column} mean per sequence -- params {params}")
-            ax.legend()
-            fig.show()
-            return
         else:
             ax.plot(
                 noise["timeindex"],
@@ -223,31 +211,49 @@ class NoiseMachine:
         :param column: str, column to plot
         """
         noise = data[data["anomaly_syn"] != 0]
-        noise_type = noise["anomaly_syn_type"].values[0]
+        noise_type = "none"
+        if noise["anomaly_syn_type"].values:
+            noise_type = noise["anomaly_syn_type"].values[0]
         x = data["timeindex"]
 
         if noise_type == "point":
-            ax.scatter(
-                noise["timeindex"],
-                noise["torqueactual"],
+            for idx in noise.index:
+                # Define the range of neighbors (adjust +/- 1 for a wider range if desired)
+                neighbor_indices = [i for i in range(idx - 1, idx + 2) if i in data.index]
+                
+                # Extract the subset of data containing the noise point and its neighbors
+                subset = data.loc[neighbor_indices]
+                
+                # Plot the subset as a line plot
+                ax.plot(
+                    subset["timeindex"],
+                    subset["torqueactual"],
+                    label=f"Anomaly at {data.loc[idx, 'timeindex']}",
+                    color='red',
+                )
+            # ax.scatter(
+            #     noise["timeindex"],
+            #     noise["torqueactual"],
+            #     label="anomalies",
+            #     c="r",
+            #     marker="x", # type: ignore
+            # )
+        elif noise_type == "sinusoidal":
+            noise1 = noise[noise["timeindex"] < x.max()/2]
+            noise2 = noise[noise["timeindex"] >= x.max()/2]
+
+            ax.plot(
+                noise1["timeindex"],
+                noise1["torqueactual"],
                 label="anomalies",
                 c="r",
-                marker="x", # type: ignore
             )
-        elif noise_type == "trend_anomaly":
-            data[f"{column}_noise"] = data[column] + data["anomaly_syn"]
-            data_group = (
-                data[["seqid", column, f"{column}_noise"]]
-                .groupby("seqid")
-                .agg("mean")
-                .reset_index()
-            )
-            ax.plot(data_group.index, data_group[column], label="original")
             ax.plot(
-                data_group.index, data_group[f"{column}_noise"], label="anomaly", c="r"
+                noise2["timeindex"],
+                noise2["torqueactual"],
+                label="anomalies",
+                c="r",
             )
-            ax.set_title(f"{noise_type} -- {column} mean per sequence -- params {params}")
-            return
         else:
             ax.plot(
                 noise["timeindex"],
@@ -256,7 +262,7 @@ class NoiseMachine:
                 c="r",
             )
         ax.plot(x, data[column]-data['anomaly_syn'], label="Torque", alpha=0.7)
-        ax.set_title(f"{noise_type} -- {column} -- params {params}")
+        #ax.set_title(f"{noise_type} -- {column} -- params {params}")
 
 
 # class NoiseFactory:
