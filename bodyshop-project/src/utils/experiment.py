@@ -43,10 +43,12 @@ class Experiment:
         }
         self.progress = pd.DataFrame()
         self.anomalies = pd.DataFrame()
+        self.model_names =[]
 
     def run(self, df, models : list[m.AnomalyDetector], columns : tuple[list[str], list[str]], spliton=None, verbose=False):
         self.results['df'] = df[columns[0] + ['timeindex'] + columns[1]].copy()
         dfs = [df]
+        self.model_names = [model.name for model in models]
 
         if spliton:
             dfs = [group for _, group in df.groupby(spliton)]
@@ -89,20 +91,19 @@ class Experiment:
 
         return self
 
-    def calculate_metrics(self, models, aggrfunc, df_anomalous=pd.DataFrame()):     
+    def calculate_metrics(self, aggrfunc, df_anomalous=pd.DataFrame()):     
         if df_anomalous.empty:
             df_anomalous = self.anomalies
 
         # Calculate series df here
         dfs_series = []
-        for model in models:
-            dfs_series += [aggrfunc(self.results['df'], [model.name])]
+        for model in self.model_names:
+            dfs_series += [aggrfunc(self.results['df'], [model])]
 
         df_series = reduce(lambda x, y: pd.merge(x, y, on = 'seqid'), dfs_series)
         df = pd.merge(df_series, df_anomalous, on='seqid')
 
-        for model in models:
-                name = model.name
+        for name in self.model_names:
                 self.results['pr'][name]    = precision_recall_curve(df['anomalous'], df[name])
                 self.results['auc-pr'][name]  = auc(self.results['pr'][name][1], self.results['pr'][name][0])
 
