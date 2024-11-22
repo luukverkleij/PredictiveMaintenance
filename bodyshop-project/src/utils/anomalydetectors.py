@@ -144,7 +144,7 @@ class IF(AnomalyDetector):
     def fit(self, df, columns, verbose):
         X = df[['timeindex'] + columns[1]]
         self.model.fit(X.values)
-        self.scores = self.model.score_samples(X.values)
+        self.scores = 1 - self.model.score_samples(X.values)
         return self
 
     def score(self, df, columns):
