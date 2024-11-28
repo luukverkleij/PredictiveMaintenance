@@ -30,7 +30,7 @@ class Experiment:
         self.anomalies = pd.DataFrame()
 
     def run(self, df, models : list[m.AnomalyDetector], columns : tuple[list[str], list[str]], spliton=None, verbose=False):
-        self.results['df'] = df[['seqid', 'timeindex_bin']].copy()
+        self.results['df'] = df[columns[0] + ['timeindex'] + columns[1]].copy()
         dfs = [df]
 
         if spliton:
