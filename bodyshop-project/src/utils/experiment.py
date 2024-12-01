@@ -36,6 +36,7 @@ class Experiment:
         self.results = {
             'input' : pd.DataFrame(),
             'df' : pd.DataFrame(),
+            'df_agg' : pd.DataFrame(),
             'pr' : {},
             'roc' : {},
             'auc-pr' : {},
@@ -102,6 +103,8 @@ class Experiment:
 
         df_series = reduce(lambda x, y: pd.merge(x, y, on = 'seqid'), dfs_series)
         df = pd.merge(df_series, df_anomalous, on='seqid')
+
+        self.results['df_agg'] = df
 
         for name in self.model_names:
                 self.results['pr'][name]    = precision_recall_curve(df['anomalous'], df[name])

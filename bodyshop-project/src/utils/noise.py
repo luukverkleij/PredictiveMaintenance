@@ -29,8 +29,8 @@ class NoiseFactory:
         return cls.generate(df, columns, ratio, machine)
     
     @classmethod
-    def point(cls, df, columns, ratio, stdtimes, amount=4):
-        machine = partial(NoiseMachine.point_anomaly, num=amount, stdtimes=stdtimes)   
+    def point(cls, df, columns, ratio, stdtimes, amount=3, mirror=True):
+        machine = partial(NoiseMachine.point_anomaly, num=amount, stdtimes=stdtimes, mirror=mirror)   
         return cls.generate(df, columns, ratio, machine)
 
 
@@ -56,13 +56,15 @@ class NoiseMachine:
 
         noise = truncnorm.rvs(minstd/std, np.inf, size=num, scale=std*stdtimes)
         index = data.sample(num).index
-        print(data.loc[index, 'torqueactual'])
-        print(noise)
         noise *= [1 if x >= 0 else -1 for x in data.loc[index, 'torqueactual'].values]
-        print(noise)
 
         data.loc[index, "anomaly_syn"] = noise
         data.loc[index, "anomaly_syn_type"] = "point"
+
+        if mirror:
+            index = data.index.max() - index + data.index.min()
+            data.loc[index, "anomaly_syn"] = noise * -1
+            data.loc[index, "anomaly_syn_type"] = "point"
 
         if replacetorque:
             data['torqueactual'] += data['anomaly_syn']

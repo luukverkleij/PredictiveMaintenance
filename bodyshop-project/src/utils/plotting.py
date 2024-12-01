@@ -2,6 +2,54 @@ import matplotlib.pyplot as plt
 from sklearn.metrics import auc
 
 # Python file that includes methods to help with plotting of the results.
+def plot_matrix(matrix, title="", colsize=5, rowsize=5):
+    # Calculate the number of rows needed
+    cols = len(matrix[0])
+    num_plots = len(matrix)*cols
+    rows = (num_plots + cols - 1) // cols  # Ceiling division to ensure enough rows
+
+    # Create a figure with subplots
+    fig, axes = plt.subplots(rows, cols, figsize=(colsize*cols, rowsize*rows))
+
+    # Loop through the DataFrames and plot each in the corresponding subplot
+    for i, fn in enumerate(matrix):
+        fn(axes[i])
+
+    # Hide any unused subplots
+    for j in range(i+1, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.suptitle(title)
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
+
+def plot_array(array, title="", colnums=3, colsize=5, rowsize=5):
+    # Calculate the number of rows needed
+    cols = colnums
+    num_plots = len(array)
+    rows = (num_plots + cols - 1) // cols  # Ceiling division to ensure enough rows
+
+    # Create a figure with subplots
+    fig, axes = plt.subplots(rows, cols, figsize=(colsize*cols, rowsize*rows))
+
+    # Flatten axes for easy indexing if needed
+    axes = axes.flatten()
+
+    # Loop through the DataFrames and plot each in the corresponding subplot
+    for i, fn in enumerate(array):
+        fn(axes[i])
+
+    # Hide any unused subplots
+    for j in range(i+1, len(axes)):
+        fig.delaxes(axes[j])
+
+    plt.suptitle(title)
+    plt.tight_layout()
+
+    # Show the plot
+    plt.show()
 
 def plot_rpcurves(rpcurves, showthresholds=True, title="", colnums=2, f1=True, auc=False, showtitle=True, linewidth=2):
 
