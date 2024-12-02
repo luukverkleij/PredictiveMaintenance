@@ -20,6 +20,7 @@ edmo-project/Processing/experiments-test/
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]
+*.pyc
 *$py.class
 
 # C extensions
@@ -196,3 +197,4 @@ presentation3.pptx
 DemoPresentation-PredictiveMaintenance_Version1.pptx
 20221011_134137.mp4
 20221011_134137-4x.mp4
+bodyshop-project/src/utils/__pycache__/aggregators.cpython-312.pyc
