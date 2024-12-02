@@ -8,11 +8,6 @@ from functools import reduce
 from sklearn.metrics import precision_recall_curve, auc, roc_curve
 from concurrent.futures import wait, FIRST_COMPLETED
 
-import src.utils.anomalydetectors as m
-import src.utils.globals as g
-
-from src.utils.plotting import plot_rpcurves
-
 import pickle
 import pandas as pd
 import concurrent.futures
@@ -24,13 +19,14 @@ from functools import reduce
 from sklearn.metrics import precision_recall_curve, auc, roc_curve
 from concurrent.futures import wait, FIRST_COMPLETED
 
-import src.utils.anomalydetectors as m
-import src.utils.globals as g
-from src.utils.plotting import plot_rpcurves
+import anomalydetectors as m
+#import src.utils.globals as g
+#from src.utils.plotting import plot_rpcurves
 
 class Experiment:
-    def __init__(self, name : str = ""):
+    def __init__(self, name : str, path : str):
         self.name = name
+        self.folderpath = path
         if self.name == "":
             self.name = datetime.now().strftime("%Y-%m-%d_%H:%M:%S")
         self.results = {
@@ -128,16 +124,13 @@ class Experiment:
         # Clear & Print
         #clear_output(wait=True)
         print("\033[F\r" + self.progress.to_string(index=False))
-    
-    def plot_rp(self, thresholds=True):
-        plot_rpcurves(self.results['pr'])
 
         
     def pickle(self):
-        directory = os.path.dirname(self.path(self.name))
+        directory = os.path.dirname(self.path(self.folderpath, self.name))
         if not os.path.exists(directory):
             os.makedirs(directory)
-        with open(self.path(self.name), 'wb') as f:
+        with open(self.path(self.folderpath, self.name), 'wb') as f:
             pickle.dump(self, f)
 
     def get(self, key):
@@ -149,8 +142,8 @@ class Experiment:
             return pickle.load(f)
         
     @classmethod
-    def path(cls, name):
-        return g.experiments_folder_path + f'{name}'
+    def path(cls, folderpath, name):
+        return folderpath + f'{name}'
     
     
     

@@ -9,9 +9,6 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.ensemble import IsolationForest
 from sklearn.covariance import MinCovDet
 
-
-import src.utils.globals as g
-
 #
 # AnomalyDetector
 #
@@ -51,7 +48,6 @@ class ZScore(AnomalyDetector):
         self.aggr = None
 
     def fit(self, df, columns, verbose):
-        df = df.reset_index(drop=True)
         self.model = df[columns[0]].copy()
         self.columns = columns
         col_time = 'timeindex_bin'
@@ -85,7 +81,6 @@ class MZScore(AnomalyDetector):
         self.aggr = None
 
     def fit(self, df, columns, verbose):
-        df = df.reset_index(drop=True)
         self.model = df[columns[0]].copy()
         self.columns = columns
         col_time = 'timeindex_bin'
@@ -112,6 +107,62 @@ class MZScore(AnomalyDetector):
         return zscore
     
 #
+# MahalanobisDistance
+#
+class MahalanobisDistance(AnomalyDetector):
+    def __init__(self):
+        super().__init__(column_name='mahalanobis')
+        self.model = None
+        self.mean = None
+        self.inv_cov_matrix = None
+
+    def _calculate_mahalanobis(self, group):
+        if len(group) == 1:
+            group[self.column_name] = 0
+            return group[[]]
+
+        features = group
+        # Calculate mean and inverse covariance matrix for the group
+        mean_vector = features.mean().values
+        cov_matrix = np.cov(features, rowvar=False)
+
+        # Attempt to invert the covariance matrix
+        try:
+            inv_cov_matrix = np.linalg.inv(cov_matrix)
+        except np.linalg.LinAlgError:
+            # Fall back to pseudo-inverse if standard inversion fails
+            inv_cov_matrix = np.linalg.pinv(cov_matrix)
+        
+        # Calculate Mahalanobis distance for each row in the group
+        group[self.column_name] = features.apply(
+            lambda row: mahalanobis(row, mean_vector, inv_cov_matrix),
+            axis=1
+        )
+
+        return group
+
+    def fit(self, df, columns, verbose):
+        self.model = df[columns[0]].copy()
+        self.columns = columns
+        col_time = 'timeindex_bin'
+        featcols = columns[1]
+
+        self.model = df.groupby(col_time)[featcols].apply(self._calculate_mahalanobis)
+        self.model = self.model[featcols + [self.column_name]].reset_index()
+
+        return self
+
+    def score(self, df, columns):
+        if self.model is None:
+            raise ValueError("Model has not been fitted yet.")
+        
+        return self.model[self.column_name]
+#
+# robustMahalanobisDistance
+#
+
+    
+#
 # LOF
 #
 class LOF(AnomalyDetector):
@@ -124,14 +175,14 @@ class LOF(AnomalyDetector):
         X = df[["timeindex"] + columns[1]]
 
         self.model.fit(X.values)
-        self.scores = pd.Series(-self.model.negative_outlier_factor_, index=X.index)
+        self.scores = -self.model.negative_outlier_factor_
         return self
 
     def score(self, df, columns):
-        if self.scores is None:
+        if self.model is None:
             raise ValueError("Model has not been fitted yet.")
         
-        return self.scores
+        return pd.Series(self.scores, index=df.index)
 
 #
 # IF
@@ -144,7 +195,7 @@ class IF(AnomalyDetector):
     def fit(self, df, columns, verbose):
         X = df[['timeindex'] + columns[1]]
         self.model.fit(X.values)
-        self.scores = 1 - self.model.score_samples(X.values)
+        self.scores = self.model.score_samples(X.values)
         return self
 
     def score(self, df, columns):
