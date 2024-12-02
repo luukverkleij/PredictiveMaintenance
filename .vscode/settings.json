@@ -1,9 +1,0 @@
-{
-    "files.exclude": {
-        "**/$RECYCLE.BIN": true,
-        "**/System Volume Information": true,
-        "**/oud": true,
-        "**/videos": true,
-        "**/.git": false
-    }
-}
