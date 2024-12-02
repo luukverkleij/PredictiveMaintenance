@@ -1,6 +1,21 @@
 import pickle
 import pandas as pd
 import concurrent.futures
+
+from typing import Self
+from datetime import datetime
+from functools import reduce
+from sklearn.metrics import precision_recall_curve, auc, roc_curve
+from concurrent.futures import wait, FIRST_COMPLETED
+
+import src.utils.anomalydetectors as m
+import src.utils.globals as g
+
+from src.utils.plotting import plot_rpcurves
+
+import pickle
+import pandas as pd
+import concurrent.futures
 import os
 
 from typing import Self
@@ -21,6 +36,7 @@ class Experiment:
         self.results = {
             'input' : pd.DataFrame(),
             'df' : pd.DataFrame(),
+            'df_agg' : pd.DataFrame(),
             'pr' : {},
             'roc' : {},
             'auc-pr' : {},
@@ -28,10 +44,12 @@ class Experiment:
         }
         self.progress = pd.DataFrame()
         self.anomalies = pd.DataFrame()
+        self.model_names =[]
 
     def run(self, df, models : list[m.AnomalyDetector], columns : tuple[list[str], list[str]], spliton=None, verbose=False):
         self.results['df'] = df[columns[0] + ['timeindex'] + columns[1]].copy()
         dfs = [df]
+        self.model_names = [model.name for model in models]
 
         if spliton:
             dfs = [group for _, group in df.groupby(spliton)]
@@ -67,27 +85,28 @@ class Experiment:
                     name = futures[future]
                     results = pd.concat(future.result())
 
-                    self.results['df'] = self.results['df'].merge(results, on=['seqid', 'timeindex_bin'])
+                    self.results['df'] = self.results['df'].merge(results, on=columns[0], how='left')
 
                     # Remove the processed future from the futures dict
                     del futures[future]
 
         return self
 
-    def calculate_metrics(self, models, aggrfunc, df_anomalous=pd.DataFrame()):     
+    def calculate_metrics(self, aggrfunc, df_anomalous=pd.DataFrame()):     
         if df_anomalous.empty:
             df_anomalous = self.anomalies
 
         # Calculate series df here
         dfs_series = []
-        for model in models:
-            dfs_series += [aggrfunc(self.results['df'], [model.name])]
+        for model in self.model_names:
+            dfs_series += [aggrfunc(self.results['df'], [model])]
 
         df_series = reduce(lambda x, y: pd.merge(x, y, on = 'seqid'), dfs_series)
         df = pd.merge(df_series, df_anomalous, on='seqid')
 
-        for model in models:
-                name = model.name
+        self.results['df_agg'] = df
+
+        for name in self.model_names:
                 self.results['pr'][name]    = precision_recall_curve(df['anomalous'], df[name])
                 self.results['auc-pr'][name]  = auc(self.results['pr'][name][1], self.results['pr'][name][0])
 
@@ -132,5 +151,6 @@ class Experiment:
     @classmethod
     def path(cls, name):
         return g.experiments_folder_path + f'{name}'
+    
     
     
